@@ -6,33 +6,30 @@
     <div class="content">
       <Split v-model="split" @on-moving="panelMove">
         <div slot="left" class="split-left">
-          <k-tree :list="treeData" @initPath="init()"></k-tree>
-          <context-menu v-if="leftMenu" :left-context-show="true" :page-x="leftMenuPageX" :page-y="leftMenuPageY"></context-menu>
+          <k-tree :list="treeData" @initPath="init" ref="tree"></k-tree>
+          <context-menu v-if="leftMenu" :left-context-show="true"
+          :page-x="leftMenuPageX" :page-y="leftMenuPageY"></context-menu>
         </div>
         <div slot="right" class="split-right">
           <div class="split-right-top">
             <div class="top-content">
               <div class="history">
-                <button disabled class="btn-default"><i class="fa fa-angle-left"></i></button>
-                <button  class="btn-default"><i class="fa fa-angle-right"></i></button>
+                <button :disabled="Filepath.length > 2 ? false : 'disabled'" class="btn-default"
+                :class="{'back-btn': Filepath.length > 2 ? true : false}" @click.stop="backPath">
+                  <i class="fa fa-angle-left"></i>
+                </button>
+                <button :disabled="advanPath.length > 0 ? false : true" class="btn-default"
+                :class="{'advance-btn': advanPath.length > 0 ? true : false}" @click.stop="advancePath">
+                  <i class="fa fa-angle-right"></i>
+                </button>
               </div>
-              <div class="top-middle">
+              <div class="top-middle" :style="{'width': split > 0.4 ? '80%' : '50%'}">
                 <button class="btn-default home-btn"><i class="fa fa-home" style="color: #999;"></i></button>
                 <div class="path" title="点击进入编辑" @click.stop="inpStatus = true">
                   <ul v-show="!inpStatus">
-                    <li style="z-index: 3">
-                      <a href="javascript:;">
-                        <span class="path-name"></span>
-                      </a>
-                    </li>
-                    <li>
-                      <a href="javascript:;" style="z-index: 2">
-                        <span class="path-name">新建文件夹</span>
-                      </a>
-                    </li>
-                    <li>
-                      <a href="javascript:;">
-                        <span class="path-name">新建文件夹</span>
+                    <li v-for="(item, index) in Filepath" :key="index">
+                      <a href="javascript:;" style="z-index: 3">
+                        <span class="path-name">{{item}}</span>
                       </a>
                     </li>
                   </ul>
@@ -40,22 +37,24 @@
                     <input type="text" id="path_inp" autofocus="autofocus" />
                   </div>
                 </div>
-                <button class="btn-default back-btn">
+                <button class="btn-default back-btn" v-if="split > 0.6 ? false : true" @click.stop="backPath">
                   <i></i>
                 </button>
               </div>
-              <div class="top-right">
-                <input type="text" />
-                <button class="btn-default search-btn">
-                  <i class="fa fa-search" aria-hidden="true"></i>
-                </button>
-              </div>
+              <transition name="split-right">
+                <div class="top-right" v-if="split > 0.38 ? false : true">
+                  <input type="text" />
+                  <button class="btn-default search-btn">
+                    <i class="fa fa-search" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </transition>
             </div>
           </div>
-          <div class="split-right-nav">
+          <div class="split-right-nav" :style="{width: split > 0.66 ? '428px' : '100%'}">
             <div class="nav-left">
               <div class="btn-wrap">
-                <button class="btn-default new-btn">
+                <button class="btn-default new-btn" @click.stop="newDir">
                   <i class="fa fa-folder" aria-hidden="true" style="color: #ffe385;"></i>
                   新建文件夹
                 </button>
@@ -75,7 +74,7 @@
                       </li>
                       <li>
                         <i class="icon xls-icon"></i>
-                        <a href="javascript:;">Excel xlsx 文件</a>
+                        <a href="javascript:;">Excel xls 文件</a>
                       </li>
                       <li>
                         <i class="icon ppt-icon"></i>
@@ -170,8 +169,9 @@
             </div>
           </div>
           <div class="split-right-content">
-            <icon-arrang v-if="iconArrangShow"></icon-arrang>
+            <icon-arrang v-if="iconArrangShow" @open="dbopenfile"></icon-arrang>
             <list-arrang v-if="listArrangShow"></list-arrang>
+            <sub-arrang v-if="subArrangShow"></sub-arrang>
           </div>
         </div>
       </Split>
@@ -184,24 +184,18 @@ import Header from './header/Header'
 import kTree from './kTree/treeList'
 import iconArrang from './iconArrang/iconArrang'
 import listArrang from './listArrang/listArrang'
+import subArrang from './subArrang/subArrang'
 import menuIcon from './baseVue/menuicon/menuIcon'
 import contextMenu from './contextmenu/rightmenu'
+import util from '../util/index'
 export default {
   name: 'index',
   created () {
     this.init()
-    this.$post('/fileapi/operdir', {key: 'list_dir', dir: '/'})
-      .then(response => {
-        console.log(response)
-        this.treeData = response.file
-      })
-      .catch(err => {
-        console.log(err)
-      })
   },
   data () {
     return {
-      treeData: {},
+      treeData: [],
       inpStatus: false,
       buildFildShow: false,
       fildUpShow: false,
@@ -218,6 +212,11 @@ export default {
       }
       this.$store.commit('changeLeftMenuShow', false)
     },
+    newDir () {
+      let obj = {}
+      obj.type = 'dir'
+      obj.extand = 'dir'
+    },
     iconArrangClick () {
       this.iconArrangShow = true
       this.listArrangShow = false
@@ -233,18 +232,46 @@ export default {
       this.listArrangShow = false
       this.subArrangShow = true
     },
+    backPath () { // 后退
+      if (this.$store.state.fileOption.currentPath.length > 0) {
+        let arr = this.$store.state.fileOption.currentPath.split('/')
+        let newPath = ''
+        let advanArr = this.$store.state.advanArr
+        advanArr.unshift(arr.join('/'))
+        this.$store.commit('changeAdvanArr', advanArr)
+        arr.splice(arr.length - 1)
+        newPath = arr.join('/')
+        this.$store.commit('changeCurrentPath', newPath)
+        this.$refs['tree'].getFile(newPath + '/')
+      }
+    },
+    advancePath () { // 前进
+      if (this.$store.state.advanArr.length > 0) {
+        let arr = this.$store.state.advanArr
+        this.$store.commit('changeCurrentPath', arr[0])
+        this.$refs['tree'].getFile(arr[0] + '/')
+        arr.splice(0, 1)
+        this.$store.commit('changeAdvanArr', arr)
+      }
+    },
     panelMove (e) {
       console.log(e)
     },
-    init () {
-      this.$post('/fileapi/operdir', {key: 'show_dir', dir: '/'})
+    init () { // 初始化获取左边目录数据
+      this.$post('/fileapi/operdir', {key: 'list_dir', dir: '/'})
         .then(response => {
-          console.log(response)
-          this.treeData = response.file
+          util.initArr()
+          this.treeData = util.recursion(response.listdir)
+          this.$store.commit('changeLeftData', this.treeData)
         })
         .catch(err => {
           console.log(err)
         })
+    },
+    dbopenfile (path) { // 右边文件双击打开文件
+      this.$refs['tree'].getFile(path + '/')
+      this.$store.commit('changeCurrentPath', path)
+      this.$store.commit('changeDownFile', path)
     }
   },
   computed: {
@@ -262,6 +289,19 @@ export default {
     },
     leftMenu () {
       return this.$store.state.leftMenuShow
+    },
+    Filepath () { // 获取当前文件路径
+      let arr = []
+      if (this.$store.state.fileOption.currentPath.length > 0) {
+        arr = this.$store.state.fileOption.currentPath.split('/')
+        arr.splice(1, 0, '/')
+      } else {
+        arr = ['', '/']
+      }
+      return arr
+    },
+    advanPath () {
+      return this.$store.state.advanArr
     }
   },
   components: {
@@ -269,6 +309,7 @@ export default {
     kTree,
     iconArrang,
     listArrang,
+    subArrang,
     menuIcon,
     contextMenu
   }
@@ -278,32 +319,35 @@ export default {
 <style>
   @import '../assets/css/basic.css';
   @import '../assets/font-awesome-4.7.0/css/font-awesome.css';
-  .container{width: 100%;height: 100%;}
+  .container{width: 100%;height: 100%;overflow-x: hidden;}
   .container .content{width: 100%;height: calc(100% - 40px);}
   .split-left{width: 100%;height: 100%;}
   .split-right{width: 100%;height: 100%;box-sizing: border-box;}
   .split-right .split-right-top{width: 100%;height: 49px;background: #f8f8f8 url('../assets/image/bg.gif') 0px -2px repeat-x;border-bottom: 1px solid #ddd;}
-  .split-right .split-right-top .top-content{width: 100%;height: 49px;padding-top: 12px;box-sizing: border-box;padding-left: 10px;}
+  .split-right .split-right-top .top-content{width: 100%;height: 49px;padding-top: 12px;box-sizing: border-box;padding-left: 10px;white-space: nowrap;}
   .split-right .split-right-top .top-content  button.btn-default{background: url("../assets/image/button_bg.png") 0 0px repeat-x;outline: none;
     display: inline-block;vertical-align: top;border: 1px solid transparent;}
   .split-right .split-right-top .top-content  button i{color: #999;font-size: 16px;}
   .split-right .split-right-top .top-content .history{display: inline-block;vertical-align: top;}
   .split-right .split-right-top .top-content .history button{width: 35px;height: 28px;text-align: center;line-height: 27px;color: #666;
     opacity: .5;border-radius: 4px;border-color: #eee;}
+  .split-right .split-right-top .top-content .history button.back-btn{opacity: 1}
+  .split-right .split-right-top .top-content .history button.advance-btn{opacity: 1;cursor: pointer;}
+  .split-right .split-right-top .top-content .history button.advance-btn:hover{background-color: #e4f8ff;border-color: #aedaff;}
   .split-right .split-right-top .top-content .top-middle{display: inline-block;width: 50%;}
   .split-right .split-right-top .top-content .top-middle .home-btn{width: 38px;height: 28px;border-color: #ddd;cursor: pointer;font-size: 16px;}
   .split-right .split-right-top .top-content .top-middle .path{display: inline-block;width: 80%;height: 28px;overflow: hidden;cursor: text;
   border: 1px solid #ddd;box-shadow: #e6e6e6 0px 0px 20px inset;background: #f8f8f8 url("../assets/image/bg.gif") 0px -2px repeat-x;}
   .split-right .split-right-top .top-content .top-middle .path ul li{display: inline-block;height: 28px;vertical-align: top;}
-  .split-right .split-right-top .top-content .top-middle .path ul li a{position: relative;display: inline-block;padding: 0 15px 0 20px;height: 28px;margin-left: -15px;
+  .split-right .split-right-top .top-content .top-middle .path ul li a{position: relative;display: inline-block;padding: 0 15px 0 15px;height: 28px;
     background: url('../assets/image/path.bg.png') no-repeat;background-position: 100% -1px;cursor: pointer;font-size: 12px;color: #666;line-height: 28px;}
   .split-right .split-right-top .top-content .top-middle .path ul li:first-child a{margin-left: 0;z-index: 3;}
   .split-right .split-right-top .top-content .top-middle .path-input{width: 100%;height: 28px;}
   .split-right .split-right-top .top-content .top-middle .path-input input{width: 100%;height: 26px;border: none;background: transparent;padding: 0 10px;line-height: 26px;
     color: #444;font-size: 12px}
-  .split-right .split-right-top .top-content .top-middle .back-btn{display: inline-block;width: 32px;height: 28px;cursor: pointer;background: url('../assets/image/button_bg.png') 0 0 repeat-x;
+  .split-right .split-right-top .top-content  .back-btn{display: inline-block;width: 32px;height: 28px;cursor: pointer;background: url('../assets/image/button_bg.png') 0 0 repeat-x;
   border-color: #ddd;}
-  .split-right .split-right-top .top-content .top-middle .back-btn:hover{background-color: #e4f8ff;border-color: #aedaff;}
+  .split-right .split-right-top .top-content  .back-btn:hover{background-color: #e4f8ff;border-color: #aedaff;}
   .split-right .split-right-top .top-content .top-middle .back-btn i{display: inline-block;width: 16px;height: 16px;background-image: url('../assets/image/menu_icon.png');background-repeat: no-repeat;
   background-position: 0px -496px;}
   .split-right .split-right-top .top-content .top-right{float: right;margin-right: 40px;}
@@ -322,7 +366,7 @@ export default {
   .split-right .split-right-nav .btn-default i{font-size: 16px;color: #999;}
   .split-right .split-right-nav .drap-btn{width: 30px;margin-left: -3px;border-left: none;}
   .split-right .split-right-nav .btn-wrap .dropMenu{position: absolute;min-width: 180px;top: 29px;left: 93px;box-shadow: 4px 5px 10px rgba(0,0,0,0.2);
-  border: 1px solid rgba(0, 0, 0, .1);background: #fff;border-radius: 3px;}
+  border: 1px solid rgba(0, 0, 0, .1);background: #fff;border-radius: 3px;z-index: 5;}
   .split-right .split-right-nav .btn-wrap .dropMenu ul{width: 100%;padding: 8px 0;}
   .split-right .split-right-nav .btn-wrap .dropMenu li{width: 100%;height: 25px;line-height: 25px;padding: 0 15px;box-sizing: border-box;cursor: pointer}
   .split-right .split-right-nav .btn-wrap .dropMenu li a{color: #333;font-size: 12px;}
@@ -333,7 +377,7 @@ export default {
   .split-right .split-right-nav .btn-wrap .dropMenu li .xls-icon{background-position: -81px -48px;}
   .split-right .split-right-nav .btn-wrap .dropMenu li .ppt-icon{background-position: -81px -288px;}
   .split-right .split-right-nav .btn-wrap .dropMenu li:hover{background: #ddd;}
-  .slide-enter-active, slide-leave-active{transform: translateY(0);transition: all .3s linear;opacity: 1}
+  .slide-enter-active, .slide-leave-active{transform: translateY(0);transition: all .3s linear;opacity: 1}
   .slide-enter, .slide-leave-to{transform: translateY(-20px);opacity: 0;}
   .split-right .split-right-nav .nav-content{float: left;margin-left: 20px;}
   .split-right .split-right-nav .nav-content ul li{float: left;}
@@ -354,4 +398,6 @@ export default {
   .split-right .split-right-nav .nav-right li button.subfiled-sort i{background-position: 16px -562px}
   .split-right .split-right-nav .nav-right li:hover button{background: #e4f8ff;border-color: #93cfff;}
   .split-right .split-right-content{width: 100%;overflow: hidden;height: calc(100% - 84px);}
+  .slplit-right-enter-active, .split-right-leave-active{transition: all .2s linear;transform: translate(0);opacity: 1;}
+  .split-right-enter, .split-right-leave-to{transform: translateX(20px);opacity: 0;}
 </style>

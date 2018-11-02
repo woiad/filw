@@ -2,39 +2,42 @@
   <transition name="slideDown">
     <div class="context-menu" :style="{'top': pageY + 'px', 'left': pageX + 'px'}">
       <ul>
-        <li v-if="!leftContextShow">
+        <li v-if="!leftContextShow" @click.stop="openDir">
           <a href="javascript:;"><menu-icon :pos-x="-17" :pos-y="-16"></menu-icon>打开</a>
         </li>
         <li @click="downFile">
           <a href="javascript:;"><menu-icon :pos-x="-16" :pos-y="-48"></menu-icon>下载</a>
         </li>
         <li class="divider"></li>
-        <li>
+        <li @click="copyClickhandle">
           <a href="javascript:;"><menu-icon :pos-y="-96"></menu-icon>复制</a>
         </li>
-        <li>
+        <li @click="shear">
           <a href="javascript:;"><menu-icon :pos-x="-16" :pos-y="-80"></menu-icon>剪切</a>
         </li>
-        <li v-if="leftContextShow">
+        <li v-if="leftContextShow" @click="paste">
           <a href="javascript:;"><menu-icon :pos-x="-16" :pos-y="-64"></menu-icon>粘贴</a>
         </li>
         <li @click="renameClickHandle">
           <a href="javascript:;"><menu-icon :pos-y="-64"></menu-icon>重命名</a>
         </li>
-        <li>
+        <li @click="delet">
           <a href="javascript:;"><menu-icon :pos-y="-80"></menu-icon>删除</a>
         </li>
         <li class="creat-compress" v-if="!leftContextShow">
           <a href="javascript:;"><menu-icon :pos-x="-16" :pos-y="-32"></menu-icon>创建压缩包</a>
           <i class="fa fa-angle-right"></i>
           <dl :class="{right: compressRight}">
-            <dd><a href="javascript:;"><menu-icon :pos-x="-16" :pos-y="-32"></menu-icon>ZIP文件夹</a></dd>
-            <dd><a href="javascript:;"><menu-icon :pos-x="-16" :pos-y="-32"></menu-icon>TAR文件夹</a></dd>
-            <dd><a href="javascript:;"><menu-icon :pos-x="-16" :pos-y="-32"></menu-icon>GZIP文件夹</a></dd>
+            <dd v-for="(item, index) in compressType" :key="index" @click="compressClick(index)">
+              <a href="javascript:;">
+                <menu-icon :pos-x="-16" :pos-y="-32"></menu-icon>
+                {{item}}文件夹
+              </a>
+            </dd>
           </dl>
         </li>
         <li class="divider"></li>
-        <li v-if="leftContextShow">
+        <li v-if="leftContextShow" @click="newFileClick">
           <a href="javascript:;"><menu-icon :pos-y="-16"></menu-icon>新建文件夹</a>
         </li>
         <li>
@@ -47,8 +50,14 @@
 
 <script>
 import menuIcon from '../baseVue/menuicon/menuIcon'
+import util from '../../util/index'
 export default {
   name: 'rightmenu',
+  data () {
+    return {
+      compressType: ['TAR', 'TAR.GZ', 'TAR,BZ2', 'ZIP']
+    }
+  },
   props: {
     pageX: {
       default: 0,
@@ -68,15 +77,278 @@ export default {
     }
   },
   methods: {
+    openDir () {
+      let item = this.rightDataFea()
+      this.$emit('on-open-file', item[1])
+    },
     downFile () {
-      let downArr = this.$store.state.fileOption.downFile
-      downArr.forEach((item) => {
-        this.$post('/fileapi/')
+      this.$store.commit('changeRightMenuShow', false)
+      let downPath = ''
+      if (this.$store.state.leftMenuShow) {
+        downPath = this.$store.state.fileOption.filePath
+      } else {
+        downPath = this.rightDataFea()[1].path
+      }
+      this.$fetch('/fileapi/downfile', {filename: downPath}, 'arraybuffer')
+        .then(res => {
+          if (res[0] === 500) {
+            this.$Message.error('err' + res[2])
+          } else {
+            let blob = new Blob([res])
+            if (window.navigator.msSaveOrOpenBlob) {
+              // 兼容IE10
+              navigator.msSaveBlob(blob, this.rightDataFea()[1].name)
+            } else {
+              //  chrome/firefox
+              let aTag = document.createElement('a')
+              aTag.download = this.rightDataFea()[1].name
+              aTag.href = URL.createObjectURL(blob) // 创建一个url对象，该对象的url指向bolb对象或file对象
+              aTag.click()
+              URL.revokeObjectURL(aTag.href) // 释放url对象，否则页面关闭后自动释放
+            }
+          }
+        })
+        .catch(err => {
+          console.log(err)
+        })
+    },
+    copy () {
+      this.$store.commit('changeRightMenuShow', false)
+      let copyPath = ''
+      if (this.$store.state.leftMenuShow) {
+        copyPath = this.$store.state.fileOption.filePath
+      } else {
+        let item = this.rightDataFea()[1]
+        let arr = item.path.split('/')
+        if (arr[arr.length - 1] !== item.name) {
+          arr[arr.length - 1] = item.name
+          item.path = arr.join('/')
+        }
+        console.log(item.path)
+        copyPath = item.path
+      }
+      if (copyPath !== '') {
+        this.$Message.success('复制成功,剪贴板已被覆盖')
+        this.$store.commit('changeCopyPath', copyPath)
+      } else {
+        this.$Message.error('复制失败')
+      }
+    },
+    copyClickhandle () {
+      this.$store.commit('changeCopyType', 'copy')
+      this.copy()
+      if (this.$store.state.leftMenuShow) {
+        let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath)
+        this.$store.commit('changeType', item.type)
+      } else {
+        console.log(this.rightDataFea()[1].type)
+        this.$store.commit('changeType', this.rightDataFea()[1].type)
+      }
+    },
+    paste () {
+      let pastePath = this.$store.state.fileOption.copyPath
+      let obj = {}
+      if (pastePath.length <= 0) {
+        this.$Message.error('粘贴失败，当前剪贴板为空')
+      } else if (this.$store.state.fileOption.copyType === 'copy') {
+        obj.from = []
+        obj.from.push(pastePath)
+        obj.to = this.$store.state.fileOption.filePath
+        this.$post('/fileapi/operdir', {key: 'cp', content: JSON.stringify(obj)})
+          .then(res => {
+            if (res[0] === 500) {
+              this.$Message.error('err' + res[2])
+            } else if (res[0] === 200) {
+              debugger
+              this.$Message.success('粘贴成功')
+              if (this.$store.state.fileOption.type === 'dir') {
+                util.initArr()
+                let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath)
+                util.delFile(this.$store.state.leftData, this.$store.state.fileOption.filePath, 'addFile', item)
+              }
+              this.judgeUpdata()
+            }
+          })
+          .catch(err => {
+            console.log(err)
+          })
+      } else if (this.$store.state.fileOption.copyType === 'shear') {
+        obj.from = []
+        obj.from.push(pastePath)
+        obj.to = this.$store.state.fileOption.filePath
+        this.$post('/fileapi/operdir', {key: 'move', content: JSON.stringify(obj)})
+          .then(res => {
+            if (res[0] === 500) {
+              this.$Message.error('err' + res[2])
+            } else if (res[0] === 200) {
+              this.$Message.success('剪贴成功')
+              if (this.$store.state.fileOption.type === 'dir') {
+                let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath)
+                util.delFile(this.$store.state.leftData, this.$store.state.fileOption.copyPath, 'del')
+                util.delFile(this.$store.state.leftData, this.$store.state.fileOption.filePath, 'addFile', item)
+              }
+              this.judgeUpdata()
+            }
+          })
+          .catch(err => {
+            this.$Message.error('err' + err)
+          })
+      }
+    },
+    shear () {
+      this.$store.commit('changeCopyType', 'shear')
+      this.copy()
+      if (this.$store.state.leftMenuShow) {
+        let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath)
+        this.$store.commit('changeType', item.type)
+      } else {
+        this.$store.commit('changeType', this.rightDataFea()[1].type)
+      }
+    },
+    delet () {
+      if (this.$store.state.leftMenuShow) {
+        this.$store.commit('changeWhereCli', 'left')
+      } else if (this.$store.state.fileOption.rightMenuShow) {
+        this.$store.commit('changeWhereCli', 'right')
+      }
+      this.$store.commit('changeRightMenuShow', false)
+      this.$Modal.confirm({
+        title: '删除确认',
+        content: `<p>${this.$store.state.fileOption.filePath}</p><p>确定删除选中内容吗？</p>`,
+        okText: '确定',
+        cancelText: '取消',
+        onOk: () => {
+          let delPath = this.$store.state.fileOption.filePath
+          let delArr = []
+          delArr.push(delPath)
+          this.$post('/fileapi/operdir', {key: 'delfile', content: JSON.stringify(delArr)})
+            .then(res => {
+              if (res[0] === 500) {
+                this.$Message.error('err' + res[2])
+              } else if (res[0] === 200) {
+                this.$Message.success('删除成功')
+                if (this.$store.state.fileOption.whereCli === 'left') {
+                  util.delDirName(this.$store.state.leftActiveName[0])
+                  util.delFile(this.$store.state.leftData, this.$store.state.fileOption.filePath, 'del')
+                }
+                this.getFile(this.$store.state.fileOption.currentPath + '/')
+              }
+            })
+        }
       })
     },
     renameClickHandle () {
+      if (this.$store.state.leftMenuShow) {
+        this.$store.commit('changeFileName', true)
+        this.$store.commit('changeRenameInpShow', true)
+      } else if (this.$store.state.fileOption.rightMenuShow) {
+        let item = this.rightDataFea()
+        this.$store.commit('changeCurrentName', item[0])
+        this.$store.commit('changeRightMenuShow', false)
+      }
+    },
+    newFileClick () {
+      if (this.$store.state.leftMenuShow) {
+        let obj = {}
+        let level = this.$store.state.level + 1
+        if (localStorage.getItem('fileQua')) {
+          let addItem = true
+          let arr = JSON.parse(localStorage.getItem('fileQua'))
+          for (let i = 0; i < arr.length; i++) {
+            if (arr[i] !== i) {
+              arr.splice(i, 0, i)
+              addItem = false
+              if (i === 0) {
+                obj.name = '新建文件夹'
+              } else {
+                obj.name = '新建文件夹' + '(' + i + ')'
+              }
+              break
+            }
+          }
+          if (addItem) {
+            arr.push(arr[arr.length - 1] + 1)
+            obj.name = '新建文件夹' + '(' + arr[arr.length - 1] + ')'
+          }
+          localStorage.setItem('fileQua', JSON.stringify(arr))
+        } else {
+          let fileQua = [0]
+          localStorage.setItem('fileQua', JSON.stringify(fileQua))
+          obj.name = '新建文件夹'
+        }
+        obj.expand = false
+        obj.check = true
+        obj.childrens = []
+        obj.type = 'dir'
+        util.recNewData(this.$store.state.leftData, this.$store.state.fileOption.filePath, obj)
+        this.$store.commit('changeLeftActiveName', obj.name)
+        this.$store.commit('changeLevel', level)
+      }
       this.$store.commit('changeFileName', true)
       this.$store.commit('changeRenameInpShow', true)
+      this.$store.commit('changeBuildFile', true)
+    },
+    rightDataFea () {
+      let arr = []
+      let showList = this.$store.state.rightShowData
+      for (let i = 0; i < showList.length; i++) {
+        if (showList[i].check) {
+          arr[0] = i
+          arr[1] = showList[i]
+          return arr
+        }
+      }
+    },
+    getFile (path) { // 刷新右边数据
+      this.$post('/fileapi/operdir', {key: 'show_dir', dir: path})
+        .then(res => {
+          let arr = []
+          for (let i in res.file) {
+            let obj = {}
+            obj.name = i
+            obj.check = false
+            obj.path = res.file[i][0]
+            if (res.file[i][1] === 'dir') {
+              obj.extand = res.file[i][1]
+            } else {
+              let arr = obj.name.split('.')
+              obj.extand = arr[arr.length - 1]
+            }
+            obj.type = res.file[i][1]
+            obj.access = res.file[i][2]
+            arr.push(obj)
+          }
+          this.$store.commit('changeRightShowData', arr)
+        })
+        .catch(err => {
+          this.$Message.error('err' + err)
+        })
+    },
+    judgeUpdata () { // 判断是够在当前目录下进行粘贴
+      if (this.$store.state.fileOption.filePath === this.$store.state.fileOption.currentPath) {
+        this.getFile(this.$store.state.fileOption.currentPath + '/')
+      } else if (this.$store.state.fileOption.copyType === 'shear') {
+        this.getFile(this.$store.state.fileOption.currentPath + '/')
+      }
+    },
+    compressClick (index) { // 压缩
+      let arr = []
+      let file = this.rightDataFea()[1]
+      arr[0] = this.$store.state.fileOption.currentPath
+      arr[1] = file.path
+      this.$store.commit('changeRightMenuShow', false)
+      this.$post('fileapi/operdir', {key: 'zip', type: index + 1, filename: JSON.stringify(arr), zipname: file.name})
+        .then(res => {
+          if (res[0] === 500) {
+            this.$Message.error('err' + res[2])
+          } else if (res[0] === 200) {
+            this.$Message.success('success' + res[2])
+          }
+          console.log(res)
+        })
+        .catch(err => {
+          console.log(err)
+        })
     }
   },
   components: {
