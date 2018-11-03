@@ -14,13 +14,13 @@ const store = new Vuex.Store({
     fileOption: {
       whereCli: '', // 删除时判断是左边删除，还是右边
       copyType: '',
-      type: '',
+      type: [],
       rename: false,
       renameInpShow: false,
       currentPath: '/',
       filePath: ['/'],
       copyPath: [],
-      buildFile: false,
+      buildFile: false, // 判断是否新建文件
       rightMenuShow: false,
       currentName: '' // 右侧重命名显示
     },
@@ -60,8 +60,8 @@ const store = new Vuex.Store({
     changeCopyType (state, type) { // 复制或粘贴
       state.fileOption.copyType = type
     },
-    changeType (state, type) { // 文件类型
-      state.fileOption.type = type
+    changeType (state, typeArr) { // 文件类型
+      state.fileOption.type = typeArr
     },
     changeFileName (state, bol) {
       state.fileOption.rename = bol

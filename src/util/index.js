@@ -43,6 +43,62 @@ util.recursion = function (data, parent, lev) { // 递归服务器数据，进�
   }
   return arr
 }
+util.newFileNumber = function (type) { // 创建多个文件夹时，文件夹的初始名字
+  let obj = {}
+  console.log(localStorage.getItem('fileQua'))
+  if (localStorage.getItem('fileQua') !== undefined && localStorage.getItem('fileQua') !== null) {
+    let addItem = true
+    let arr = JSON.parse(localStorage.getItem('fileQua'))
+    if (arr.length === 0) {
+      let fileQua = [0]
+      localStorage.setItem('fileQua', JSON.stringify(fileQua))
+      if (type) {
+        obj.name = '新建文件' + '.' + type
+      } else {
+        obj.name = '新建文件夹'
+      }
+    } else {
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i] !== i) {
+          arr.splice(i, 0, i)
+          addItem = false
+          if (i === 0) {
+            if (type) {
+              obj.name = '新建文件' + '.' + type
+            } else {
+              obj.name = '新建文件夹'
+            }
+          } else {
+            if (type) {
+              obj.name = '新建文件' + '(' + i + ')' + '.' + type
+            } else {
+              obj.name = '新建文件夹' + '(' + i + ')'
+            }
+          }
+          break
+        }
+      }
+    }
+    if (addItem) {
+      arr.push(arr[arr.length - 1] + 1)
+      if (type) {
+        obj.name = '新建文件' + '(' + arr[arr.length - 1] + ')' + '.' + type
+      } else {
+        obj.name = '新建文件夹' + '(' + arr[arr.length - 1] + ')'
+      }
+    }
+    localStorage.setItem('fileQua', JSON.stringify(arr))
+  } else {
+    let fileQua = [0]
+    localStorage.setItem('fileQua', JSON.stringify(fileQua))
+    if (type) {
+      obj.name = 'c' + '.' + type
+    } else {
+      obj.name = '新建文件'
+    }
+  }
+  return obj
+}
 util.recNewData = function (list, path, obj) { // 新建文件，往文件里面添加新文件夹
   for (let i = 0; i < list.length; i++) {
     if (list[i].path === path) {
@@ -57,10 +113,11 @@ util.recNewData = function (list, path, obj) { // 新建文件，往文件里面
   return list
 }
 util.delDirName = function (name) {
+  let nameArr = name.split('/')
   if (localStorage.getItem('fileQua')) { // 新建文件夹名字删除
-    let delNewName = Number(name.replace(/[^\d]/ig, ''))
+    let delNewName = Number(nameArr[nameArr.length - 1].replace(/[^\d]/ig, ''))
     let arr = JSON.parse(localStorage.getItem('fileQua'))
-    if (name === '新建文件夹') {
+    if (nameArr[nameArr.length - 1] === '新建文件夹') {
       arr.splice(0, 1)
     } else {
       for (let i = 0; i < arr.length; i++) {
@@ -78,19 +135,24 @@ util.delFile = function (list, path, type, item) { // 删除导航栏文件
     if (list[i].path === path && type === 'del') {
       list.splice(i, 1)
       break
-    } else if (list[i].path === path && type === 'addFile') {
+    } else if (list[i].path === path && type === 'addFile') { // 新建导航栏文件
       let str = JSON.stringify(item)
       let obj = JSON.parse(str)
-      if (obj.level) {
+      if (obj.type === 'dir') { // 判断新增的文件是 dir 还是 type
         obj.level = list[i].level + 1
       }
+      if (!obj.childrens) {
+        obj.childrens = []
+      }
       list[i].childrens.push(obj)
+    } else if (list[i].path === path && type === 'error') {
+      list[i].childrens.splice(list[i].childrens.length - 1, 1)
     }
     util.delFile(list[i].childrens, path, type, item)
   }
   return list
 }
-util.copy = function (list, conditions) {
+util.copy = function (list, conditions) { // 点击复制，获取复制的文件信息
   for (let i = 0; i < list.length; i++) {
     if (list[i].path === conditions) {
       copyItem = list[i]
@@ -99,5 +161,16 @@ util.copy = function (list, conditions) {
     util.copy(list[i].childrens, conditions)
   }
   return copyItem
+}
+util.rightDataFea = function (listData) {
+  let arr = []
+  let showList = listData
+  for (let i = 0; i < showList.length; i++) {
+    if (showList[i].check) {
+      arr[0] = i
+      arr[1] = showList[i]
+      return arr
+    }
+  }
 }
 export default util

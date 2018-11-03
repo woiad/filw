@@ -64,19 +64,19 @@
                 <transition name="slide">
                   <div class="dropMenu" v-if="buildFildShow">
                     <ul>
-                      <li>
+                      <li @click.stop="newDir('txt')">
                         <i class="icon txt-icon"></i>
                         <a href="javascript:;">txt文件</a>
                       </li>
-                      <li>
+                      <li @click.stop="newDir('doc')">
                         <i class="icon doc-icon"></i>
                         <a href="javascript:;">Word docx 文件</a>
                       </li>
-                      <li>
+                      <li @click.stop="newDir('xls')">
                         <i class="icon xls-icon"></i>
                         <a href="javascript:;">Excel xls 文件</a>
                       </li>
-                      <li>
+                      <li @click.stop="newDir('ppt')">
                         <i class="icon ppt-icon"></i>
                         <a href="javascript:;">PowerPoint pptx 文件</a>
                       </li>
@@ -111,12 +111,12 @@
             <div class="nav-content">
               <ul v-if="listShow">
                 <li>
-                  <button class="btn-default">
+                  <button class="btn-default" @click.stop="downFile">
                     <menu-icon :pos-x="-16" :pos-y="-48" :mg="4"></menu-icon>下载
                   </button>
                 </li>
                 <li>
-                  <button class="btn-default">
+                  <button class="btn-default" @click.stop="optionHandler('delete')">
                     <menu-icon  :pos-y="-80" :mg="4"></menu-icon>删除
                   </button>
                 </li>
@@ -126,18 +126,13 @@
                   </button>
                 </li>
                 <li>
-                  <button class="btn-default">
+                  <button class="btn-default" @click.stop="optionHandler('copy')">
                     <menu-icon  :pos-y="-96" :mg="4"></menu-icon>复制
                   </button>
                 </li>
                 <li>
-                  <button class="btn-default">
+                  <button class="btn-default" @click.stop="optionHandler('shear')">
                     <menu-icon  :pos-x="-16" :pos-y="-80" :mg="4"></menu-icon>剪切
-                  </button>
-                </li>
-                <li>
-                  <button class="btn-default">
-                    ...更多 <i class="fa fa-angle-down"></i>
                   </button>
                 </li>
               </ul>
@@ -169,7 +164,7 @@
             </div>
           </div>
           <div class="split-right-content">
-            <icon-arrang v-if="iconArrangShow" @open="dbopenfile"></icon-arrang>
+            <icon-arrang v-if="iconArrangShow" @open="dbopenfile" ref="iconArrang"></icon-arrang>
             <list-arrang v-if="listArrangShow"></list-arrang>
             <sub-arrang v-if="subArrangShow"></sub-arrang>
           </div>
@@ -188,6 +183,7 @@ import subArrang from './subArrang/subArrang'
 import menuIcon from './baseVue/menuicon/menuIcon'
 import contextMenu from './contextmenu/rightmenu'
 import util from '../util/index'
+
 export default {
   name: 'index',
   created () {
@@ -212,10 +208,101 @@ export default {
       }
       this.$store.commit('changeLeftMenuShow', false)
     },
-    newDir () {
-      let obj = {}
-      obj.type = 'dir'
-      obj.extand = 'dir'
+    newDir (fileType) {
+      let obj = util.newFileNumber(fileType)
+      if (fileType) {
+        this.buildFildShow = false
+        obj.type = 'file'
+        obj.extand = fileType
+      } else {
+        obj.type = 'dir'
+        obj.extand = 'dir'
+      }
+      obj.check = true
+      this.$store.state.rightShowData.unshift(obj)
+      this.$store.commit('changeCurrentName', 0)
+      this.$store.commit('changeBuildFile', true)
+    },
+    downFile () {
+      let downArr = this.$store.state.rightShowData
+      downArr.forEach(item => {
+        if (item.check) {
+          this.$fetch('fileapi/downfile', {filename: item.path})
+            .then(res => {
+              if (res[0] === 500) {
+                this.$Message.error('err' + res[2])
+              } else {
+                let blob = new Blob([res])
+                if (window.navigator.msSaveOrOpenBlob) {
+                  // 兼容IE10
+                  navigator.msSaveBlob(blob, item.name)
+                } else {
+                  //  chrome/firefox
+                  let aTag = document.createElement('a')
+                  aTag.download = item.name
+                  aTag.href = URL.createObjectURL(blob) // 创建一个url对象，该对象的url指向bolb对象或file对象
+                  aTag.click()
+                  URL.revokeObjectURL(aTag.href) // 释放url对象，否则页面关闭后自动释放
+                }
+              }
+            })
+            .catch(err => {
+              console.log(err)
+            })
+        }
+      })
+    },
+    optionHandler (option) {
+      let optionArr = this.dataForEach()
+      let pathArr = []
+      let typeArr = []
+      for (let i = 0; i < optionArr.length; i++) {
+        pathArr.push(optionArr[i].path)
+        typeArr.push(optionArr[i].type)
+      }
+      if (optionArr.length <= 1) {
+        this.$store.commit('changeType', optionArr[0].type)
+      } else {
+        this.$store.commit('changeType', typeArr)
+      }
+      if (option === 'delete') {
+        this.$Modal.confirm({
+          title: '删除确认',
+          content: `<p>${optionArr[0].name}</p><p style="margin: 5px 0;">...<span style="background: #f0ad4e;color: #fff;padding: 5px; border-radius: 5px;">${pathArr.length}项内容</span></p><p>确定删除选中内容吗？</p>`,
+          okText: '确定',
+          cancelText: '取消',
+          onOk: () => {
+            this.$post('fileapi/operdir', {key: 'delfile', content: JSON.stringify(pathArr)})
+              .then(res => {
+                if (res[0] === 500) {
+                  this.$Message.error('err' + res[2])
+                } else if (res[0] === 200) {
+                  this.$Message.success('success' + res[2])
+                  for (let i = 0; i < pathArr.length; i++) {
+                    util.delFile(this.$store.state.leftData, pathArr[i], 'del')
+                  }
+                  this.$refs['tree'].getFile(this.$store.state.fileOption.currentPath + '/')
+                }
+              })
+              .catch(err => {
+                this.$message.error('err' + err)
+                console.log(err)
+              })
+          }
+        })
+      } else if (option === 'copy') {
+        this.$store.commit('changeCopyType', 'copy')
+        if (pathArr.length > 0) {
+          this.$Message.success('复制成功,剪贴板已被覆盖')
+          this.$store.commit('changeCopyPath', pathArr)
+        }
+      } else if (option === 'shear') {
+        this.$store.commit('changeCopyType', 'shear')
+        if (pathArr.length > 0) {
+          this.$Message.success('剪贴成功,剪贴板已被覆盖')
+          this.$store.commit('changeCopyPath', pathArr)
+        }
+      }
     },
     iconArrangClick () {
       this.iconArrangShow = true
@@ -272,6 +359,15 @@ export default {
       this.$refs['tree'].getFile(path + '/')
       this.$store.commit('changeCurrentPath', path)
       this.$store.commit('changeDownFile', path)
+    },
+    dataForEach () {
+      let arr = []
+      this.$store.state.rightShowData.forEach(item => {
+        if (item.check) {
+          arr.push(item)
+        }
+      })
+      return arr
     }
   },
   computed: {

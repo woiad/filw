@@ -78,7 +78,7 @@ export default {
   },
   methods: {
     openDir () {
-      let item = this.rightDataFea()
+      let item = util.rightDataFea(this.$store.state.rightShowData)
       this.$emit('on-open-file', item[1])
     },
     downFile () {
@@ -87,7 +87,7 @@ export default {
       if (this.$store.state.leftMenuShow) {
         downPath = this.$store.state.fileOption.filePath
       } else {
-        downPath = this.rightDataFea()[1].path
+        downPath = util.rightDataFea(this.$store.state.rightShowData)[1].path
       }
       this.$fetch('/fileapi/downfile', {filename: downPath}, 'arraybuffer')
         .then(res => {
@@ -97,11 +97,11 @@ export default {
             let blob = new Blob([res])
             if (window.navigator.msSaveOrOpenBlob) {
               // 兼容IE10
-              navigator.msSaveBlob(blob, this.rightDataFea()[1].name)
+              navigator.msSaveBlob(blob, util.rightDataFea(this.$store.state.rightShowData)[1].name)
             } else {
               //  chrome/firefox
               let aTag = document.createElement('a')
-              aTag.download = this.rightDataFea()[1].name
+              aTag.download = util.rightDataFea(this.$store.state.rightShowData)[1].name
               aTag.href = URL.createObjectURL(blob) // 创建一个url对象，该对象的url指向bolb对象或file对象
               aTag.click()
               URL.revokeObjectURL(aTag.href) // 释放url对象，否则页面关闭后自动释放
@@ -114,20 +114,19 @@ export default {
     },
     copy () {
       this.$store.commit('changeRightMenuShow', false)
-      let copyPath = ''
+      let copyPath = []
       if (this.$store.state.leftMenuShow) {
-        copyPath = this.$store.state.fileOption.filePath
+        copyPath.push(this.$store.state.fileOption.filePath)
       } else {
-        let item = this.rightDataFea()[1]
+        let item = util.rightDataFea(this.$store.state.rightShowData)[1]
         let arr = item.path.split('/')
         if (arr[arr.length - 1] !== item.name) {
           arr[arr.length - 1] = item.name
           item.path = arr.join('/')
         }
-        console.log(item.path)
-        copyPath = item.path
+        copyPath.push(item.path)
       }
-      if (copyPath !== '') {
+      if (copyPath.length !== 0) {
         this.$Message.success('复制成功,剪贴板已被覆盖')
         this.$store.commit('changeCopyPath', copyPath)
       } else {
@@ -138,11 +137,10 @@ export default {
       this.$store.commit('changeCopyType', 'copy')
       this.copy()
       if (this.$store.state.leftMenuShow) {
-        let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath)
-        this.$store.commit('changeType', item.type)
+        this.$store.commit('changeType', 'dir')
       } else {
-        console.log(this.rightDataFea()[1].type)
-        this.$store.commit('changeType', this.rightDataFea()[1].type)
+        console.log(util.rightDataFea(this.$store.state.rightShowData)[1].type)
+        this.$store.commit('changeType', util.rightDataFea(this.$store.state.rightShowData)[1].type)
       }
     },
     paste () {
@@ -151,20 +149,24 @@ export default {
       if (pastePath.length <= 0) {
         this.$Message.error('粘贴失败，当前剪贴板为空')
       } else if (this.$store.state.fileOption.copyType === 'copy') {
-        obj.from = []
-        obj.from.push(pastePath)
+        obj.from = pastePath
         obj.to = this.$store.state.fileOption.filePath
         this.$post('/fileapi/operdir', {key: 'cp', content: JSON.stringify(obj)})
           .then(res => {
             if (res[0] === 500) {
               this.$Message.error('err' + res[2])
             } else if (res[0] === 200) {
-              debugger
               this.$Message.success('粘贴成功')
               if (this.$store.state.fileOption.type === 'dir') {
-                util.initArr()
-                let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath)
+                let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath[0])
                 util.delFile(this.$store.state.leftData, this.$store.state.fileOption.filePath, 'addFile', item)
+              } else if (this.$store.state.fileOption.type.length > 1) {
+                for (let i = 0; i < this.$store.state.fileOption.type.length; i++) {
+                  if (this.$store.state.fileOption.type[i] === 'dir') {
+                    let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath[i])
+                    util.delFile(this.$store.state.leftData, this.$store.state.fileOption.filePath, 'addFile', item)
+                  }
+                }
               }
               this.judgeUpdata()
             }
@@ -173,8 +175,7 @@ export default {
             console.log(err)
           })
       } else if (this.$store.state.fileOption.copyType === 'shear') {
-        obj.from = []
-        obj.from.push(pastePath)
+        obj.from = pastePath
         obj.to = this.$store.state.fileOption.filePath
         this.$post('/fileapi/operdir', {key: 'move', content: JSON.stringify(obj)})
           .then(res => {
@@ -183,9 +184,17 @@ export default {
             } else if (res[0] === 200) {
               this.$Message.success('剪贴成功')
               if (this.$store.state.fileOption.type === 'dir') {
-                let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath)
-                util.delFile(this.$store.state.leftData, this.$store.state.fileOption.copyPath, 'del')
+                let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath[0])
+                util.delFile(this.$store.state.leftData, this.$store.state.fileOption.copyPath[0], 'del')
                 util.delFile(this.$store.state.leftData, this.$store.state.fileOption.filePath, 'addFile', item)
+              } else if (this.$store.state.fileOption.type.length > 1) {
+                for (let i = 0; i < this.$store.state.fileOption.type.length; i++) {
+                  if (this.$store.state.fileOption.type[i] === 'dir') {
+                    let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath[i])
+                    util.delFile(this.$store.state.leftData, this.$store.state.fileOption.copyPath[i], 'del')
+                    util.delFile(this.$store.state.leftData, this.$store.state.fileOption.filePath, 'addFile', item)
+                  }
+                }
               }
               this.judgeUpdata()
             }
@@ -199,10 +208,9 @@ export default {
       this.$store.commit('changeCopyType', 'shear')
       this.copy()
       if (this.$store.state.leftMenuShow) {
-        let item = util.copy(this.$store.state.leftData, this.$store.state.fileOption.copyPath)
-        this.$store.commit('changeType', item.type)
+        this.$store.commit('changeType', 'dir')
       } else {
-        this.$store.commit('changeType', this.rightDataFea()[1].type)
+        this.$store.commit('changeType', util.rightDataFea(this.$store.state.rightShowData)[1].type)
       }
     },
     delet () {
@@ -227,11 +235,11 @@ export default {
                 this.$Message.error('err' + res[2])
               } else if (res[0] === 200) {
                 this.$Message.success('删除成功')
-                if (this.$store.state.fileOption.whereCli === 'left') {
-                  util.delDirName(this.$store.state.leftActiveName[0])
-                  util.delFile(this.$store.state.leftData, this.$store.state.fileOption.filePath, 'del')
+                util.delDirName(this.$store.state.fileOption.filePath)
+                util.delFile(this.$store.state.leftData, this.$store.state.fileOption.filePath, 'del')
+                if (this.$store.state.fileOption.whereCli === 'right') {
+                  this.getFile(this.$store.state.fileOption.currentPath + '/')
                 }
-                this.getFile(this.$store.state.fileOption.currentPath + '/')
               }
             })
         }
@@ -242,40 +250,15 @@ export default {
         this.$store.commit('changeFileName', true)
         this.$store.commit('changeRenameInpShow', true)
       } else if (this.$store.state.fileOption.rightMenuShow) {
-        let item = this.rightDataFea()
+        let item = util.rightDataFea(this.$store.state.rightShowData)
         this.$store.commit('changeCurrentName', item[0])
         this.$store.commit('changeRightMenuShow', false)
       }
     },
     newFileClick () {
       if (this.$store.state.leftMenuShow) {
-        let obj = {}
+        let obj = util.newFileNumber()
         let level = this.$store.state.level + 1
-        if (localStorage.getItem('fileQua')) {
-          let addItem = true
-          let arr = JSON.parse(localStorage.getItem('fileQua'))
-          for (let i = 0; i < arr.length; i++) {
-            if (arr[i] !== i) {
-              arr.splice(i, 0, i)
-              addItem = false
-              if (i === 0) {
-                obj.name = '新建文件夹'
-              } else {
-                obj.name = '新建文件夹' + '(' + i + ')'
-              }
-              break
-            }
-          }
-          if (addItem) {
-            arr.push(arr[arr.length - 1] + 1)
-            obj.name = '新建文件夹' + '(' + arr[arr.length - 1] + ')'
-          }
-          localStorage.setItem('fileQua', JSON.stringify(arr))
-        } else {
-          let fileQua = [0]
-          localStorage.setItem('fileQua', JSON.stringify(fileQua))
-          obj.name = '新建文件夹'
-        }
         obj.expand = false
         obj.check = true
         obj.childrens = []
@@ -287,17 +270,6 @@ export default {
       this.$store.commit('changeFileName', true)
       this.$store.commit('changeRenameInpShow', true)
       this.$store.commit('changeBuildFile', true)
-    },
-    rightDataFea () {
-      let arr = []
-      let showList = this.$store.state.rightShowData
-      for (let i = 0; i < showList.length; i++) {
-        if (showList[i].check) {
-          arr[0] = i
-          arr[1] = showList[i]
-          return arr
-        }
-      }
     },
     getFile (path) { // 刷新右边数据
       this.$post('/fileapi/operdir', {key: 'show_dir', dir: path})
@@ -324,7 +296,7 @@ export default {
           this.$Message.error('err' + err)
         })
     },
-    judgeUpdata () { // 判断是够在当前目录下进行粘贴
+    judgeUpdata () { // 判断是否在当前目录下进行粘贴
       if (this.$store.state.fileOption.filePath === this.$store.state.fileOption.currentPath) {
         this.getFile(this.$store.state.fileOption.currentPath + '/')
       } else if (this.$store.state.fileOption.copyType === 'shear') {

@@ -2,7 +2,7 @@
   <div class="tree-container">
     <ul>
       <li v-for="(item, index) in list" :key="index" :class="{'user-select': userSelect}">
-        <p @mouseover="mouseIn(item.name)" @mouseout="mouseLeave(item.name)" :class="{'active': activeName.indexOf(item.name) > -1 && hierarch === item.level}"
+        <p @mouseover="mouseIn(item.name)" @mouseout="mouseLeave" :class="{'active': activeName.indexOf(item.name) > -1 && hierarch === item.level}"
            @click.stop="leftItemClick(item)" @contextmenu.prevent="contextMenu($event, item)">
           <i class="space" :style="{width: item.level * 5 + 'px'}"></i>
           <i class="fa down" :class="[item.expand ? 'fa-angle-down' : 'fa-angle-right']"
@@ -80,8 +80,8 @@ export default {
       this.hoverName = []
       this.hoverName.push(key)
     },
-    mouseLeave (key) {
-      this.hoverName.splice(key)
+    mouseLeave () {
+      this.hoverName.splice(0, 1)
     },
     leftBtnClick (e, item) {
       this.addActiveName(item)
@@ -110,7 +110,7 @@ export default {
       obj.to = this.inpCont
       if (this.$store.state.fileOption.buildFile) { // 判断是否是新建文件夹
         if (this.inpCont !== '') {
-          util.delDirName(this.$store.state.leftActiveName[0])
+          util.delDirName(this.$store.state.fileOption.filePath)
           item.name = this.inpCont
           this.$store.commit('changeLeftActiveName', this.inpCont)
         }
@@ -122,9 +122,10 @@ export default {
         this.$post('fileapi/operdir', {key: 'create', dirname: pathArr.join('/'), filetype: 'dir'})
           .then(res => {
             if (res[0] === 200) {
-              this.$Message.success('新建下成功')
+              this.$Message.success('新建成功')
             } else if (res[0] === 500) {
               this.$Message.error('err' + res[2])
+              util.delFile(this.$store.state.leftData, this.$store.state.fileOption.filePath, 'error')
             }
             this.$store.commit('changeBuildFile', false)
           })

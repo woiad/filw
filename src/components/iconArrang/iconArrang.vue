@@ -9,8 +9,8 @@
           <img :src="item.src" v-if="item.type.split('/')[0] === 'image'" />
           <img v-else :src="type.indexOf(item.extand) > -1 ? '../../../static/image/' + item.extand + '.png' : '../../../static/image/txt.png'" />
         </div>
-        <p @dblclick.stop="textdbClick(item, index)" :class="{'unactive': currentNameShow === index ? true : false}">{{item.name}}</p>
-        <div class="rename" :class="{'active': currentNameShow === index ? true : false}">
+        <p @dblclick.stop="textdbClick(item, index)" :class="{'unactive': (currentNameShow === index && item.check) ? true : false}">{{item.name}}</p>
+        <div class="rename" :class="{'active': (currentNameShow === index && item.check) ? true : false}">
           <textarea v-focus="item.check" @blur.prevent="confirmName(item)" v-model="item.name"
           @focus="textFocus($event, item)" :style="{'height': currentNameShow === index ? textHeight + 'px' : '36px'}"></textarea>
         </div>
@@ -34,6 +34,7 @@
 <script>
 import rightMenu from '../contextmenu/rightmenu'
 import {FILETYPE} from '../../util/type'
+import util from '../../util/index'
 export default {
   name: 'iconArrang',
   data () {
@@ -176,13 +177,36 @@ export default {
       let obj = {}
       obj.from = item.path
       obj.to = item.name
-      if (this.oldName !== item.name) {
+      if (this.oldName !== item.name && !this.$store.state.fileOption.buildFile) {
         this.$post('fileapi/operdir', {key: 'rename', content: JSON.stringify(obj)})
           .then(res => {
             if (res[0] === 500) {
               this.$Message.error('err' + res[2])
             } else if (res[0] === 200) {
               this.$Message.success('success' + res[2])
+            }
+          })
+          .catch(err => {
+            console.log(err)
+          })
+      }
+      if (this.$store.state.fileOption.buildFile) {
+        if (this.$store.state.fileOption.currentPath === '/') {
+          item.path = '/' + item.name
+        } else {
+          item.path = this.$store.state.fileOption.currentPath + '/' + item.name
+        }
+        if (this.oldName !== item.name) { // 当新建文件不使用默认名字时，删除默认名字
+          util.delDirName(this.$store.state.fileOption.filePath)
+        }
+        this.$post('fileapi/operdir', {key: 'create', dirname: item.path, filetype: item.type})
+          .then(res => {
+            if (res[0] === 500) {
+              this.$Message.error('err' + res[2])
+              this.$store.state.rightShowData.splice(0, 1)
+            } else if (res[0] === 200) {
+              this.$Message.success('success' + res[2])
+              util.delFile(this.$store.state.leftData, this.$store.state.fileOption.currentPath, 'addFile', item)
             }
           })
           .catch(err => {
