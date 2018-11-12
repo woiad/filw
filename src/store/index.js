@@ -11,6 +11,8 @@ const store = new Vuex.Store({
     leftMenuShow: false,
     leftActiveName: [],
     level: 0,
+    unzipShow: false,
+    unzipItem: [],
     fileOption: {
       whereCli: '', // 删除时判断是左边删除，还是右边
       copyType: '',
@@ -89,6 +91,12 @@ const store = new Vuex.Store({
     },
     changeCurrentName (state, name) {
       state.fileOption.currentName = name
+    },
+    changeUnZipShow (state, bol) {
+      state.unzipShow = bol
+    },
+    changeUnzipItem (state, arr) {
+      state.unzipItem = arr
     }
   },
   actions: {},

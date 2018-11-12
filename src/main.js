@@ -6,15 +6,15 @@ import iview from 'iview'
 import 'iview/dist/styles/iview.css'
 import store from './store/index'
 import {fetch, post} from './util/http'
-import 'jquery'
-import '../static/css/layer.css'
-import layer from '../static/js/layer'
+import ace from 'ace-builds'
+import componentsInstall from './components/Install'
 
 Vue.config.productionTip = false
 Vue.use(iview)
+Vue.use(ace)
+Vue.use(componentsInstall)
 Vue.prototype.$post = post
 Vue.prototype.$fetch = fetch
-Vue.prototype.$layer = layer
 
 /* eslint-disable no-new */
 new Vue({

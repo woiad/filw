@@ -4,12 +4,13 @@
     @on-open-file="openFile"></right-menu>
     <ul v-if="fileData.length > 0">
       <li v-for="(item, index) in fileData" :key="index" :class="{'active':item.check}" @click.stop="dataForeach(item, index, true)"
-          @dblclick="openFile(item)" @contextmenu.prevent="contentMenuRight(item, index, $event)">
+          @dblclick="openFile(item)" @contextmenu.prevent="contentMenuRight(item, index, $event)" :ref="item.check ? 'active' : '' " :id="item.check ? 'liActive' : ''">
         <div class="bg_img">
           <img :src="item.src" v-if="item.type.split('/')[0] === 'image'" />
           <img v-else :src="type.indexOf(item.extand) > -1 ? '../../../static/image/' + item.extand + '.png' : '../../../static/image/txt.png'" />
         </div>
-        <p @dblclick.stop="textdbClick(item, index)" :class="{'unactive': (currentNameShow === index && item.check) ? true : false}">{{item.name}}</p>
+        <p @dblclick.stop="textdbClick(item, index)" :class="{'unactive': (currentNameShow === index && item.check) ? true : false}"
+           title="双击名称重命名">{{item.name}}</p>
         <div class="rename" :class="{'active': (currentNameShow === index && item.check) ? true : false}">
           <textarea v-focus="item.check" @blur.prevent="confirmName(item)" v-model="item.name"
           @focus="textFocus($event, item)" :style="{'height': currentNameShow === index ? textHeight + 'px' : '36px'}"></textarea>
@@ -28,6 +29,25 @@
         <p>文件夹为空!</p>
       </div>
     </div>
+    <div class="iframe-container" v-if="frameShow">
+      <div class="load" v-if="loadShow">
+        <img src="../../../static/image/loading-0.gif">
+      </div>
+      <div class="iframe-wrapper" ref="popUp" v-else>
+        <div class="iframe-top">
+          <p>{{fileTitle}}</p>
+          <div class="max" @click="handkleMax">
+            <i class="fa fa-square-o" aria-hidden="true"></i>
+          </div>
+          <div class="close" @click="close">
+            <i class="fa fa-close" aria-hidden="true"></i>
+          </div>
+        </div>
+        <div class="content">
+          <ace v-model="response" :file-type="fileType" :path="dirPath" @save-complete="dataChg = !dataChg"></ace>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -39,6 +59,10 @@ export default {
   name: 'iconArrang',
   data () {
     return {
+      frameShow: false,
+      fileTitle: '',
+      fileType: '',
+      response: '',
       type: FILETYPE,
       count: 0,
       dis_x: 0,
@@ -46,7 +70,10 @@ export default {
       compressRight: false,
       oldName: '',
       ind: '',
-      textHeight: 36
+      textHeight: 36,
+      loadShow: true,
+      dataChg: false,
+      dirPath: ''
     }
   },
   computed: {
@@ -60,17 +87,36 @@ export default {
       return this.$store.state.fileOption.currentName
     }
   },
+  watch: {
+    response () {
+      if (this.response !== '') {
+        this.dataChg = true
+      } else {
+        this.dataChg = false
+      }
+    }
+  },
   methods: {
     contentMenuPos (ul, li, rightHand, offsetX, offsetY) {
       const rightMeunWid = this.$refs['rightmenu'].$el.clientWidth
+      const rightMenuHeight = this.$refs['rightmenu'].$el.clientHeight
       this.compressRight = false
       const allWid = ul.clientWidth
+      let allHig = 0
+      if (ul.clientHeight > ul.parentElement.clientHeight) {
+        allHig = ul.clientHeight
+      } else {
+        allHig = ul.parentElement.clientHeight
+      }
       if (rightHand) {
         this.dis_x = li.offsetLeft + offsetX
         this.dis_y = li.offsetTop + offsetY
       } else {
         this.dis_x = li.offsetLeft + li.clientWidth
         this.dis_y = li.offsetTop + 10
+      }
+      if (rightMenuHeight + li.offsetTop > allHig) {
+        this.dis_y = allHig - rightMenuHeight
       }
       if (this.dis_x + rightMeunWid + 100 > allWid) {
         this.compressRight = true
@@ -96,13 +142,8 @@ export default {
       this.$store.commit('changeDownFile', item.path)
       if (this.menuShow) {
         this.$nextTick(() => {
-          if (e.path[0].tagName.toLowerCase() === 'img') {
-            this.contentMenuPos(e.path[3], e.path[2], true, e.offsetX, e.offsetY)
-          } else if (e.path[0].tagName.toLowerCase() === 'li') {
-            this.contentMenuPos(e.path[1], e.path[0], true, e.offsetX, e.offsetY)
-          } else if (e.path[0].tagName.toLowerCase() === 'p') {
-            this.contentMenuPos(e.path[2], e.path[1], true, e.offsetX, e.offsetY)
-          }
+          console.log(this.$refs.active)
+          this.contentMenuPos(this.$refs.active[0].parentElement, this.$refs.active[0], true, e.offsetX, e.offsetY)
         })
         this.dataForeach(item, index, false)
       }
@@ -140,23 +181,39 @@ export default {
     openFile (item) {
       this.$store.commit('changeRightMenuShow', false)
       if (item.type !== 'dir') {
+        this.frameShow = true
+        this.loadShow = true
         this.$post('fileapi/operdir', {key: 'updatefile_r', dirname: item.path})
           .then(res => {
             if (res[0] === 'err') {
+              setTimeout(() => {
+                this.loadShow = false
+                this.frameShow = false
+              }, 200)
               this.$Message.error('err' + res[2])
             } else if (res[0] === 500) {
+              setTimeout(() => {
+                this.loadShow = false
+                this.frameShow = false
+              }, 200)
               this.$Message.error('err' + res[2])
             } else {
-              this.$layer.open({
-                type: 1,
-                area: ['600px', '360px'],
-                shadeClose: true,
-                content: res
-              })
+              setTimeout(() => {
+                this.loadShow = false
+              }, 500)
+              let arr = item.path.split('.')
+              let titleArr = item.path.split('/')
+              this.fileType = arr[arr.length - 1]
+              this.fileTitle = titleArr[titleArr.length - 1]
+              this.response = res
+              this.dirPath = item.path
             }
-            console.log(res)
           })
           .catch(err => {
+            setTimeout(() => {
+              this.loadShow = false
+              this.frameShow = false
+            }, 200)
             console.log(err)
           })
       } else {
@@ -183,7 +240,13 @@ export default {
             if (res[0] === 500) {
               this.$Message.error('err' + res[2])
             } else if (res[0] === 200) {
+              debugger
               this.$Message.success('success' + res[2])
+              item.path = util.pathModifer(item.name, item.path)
+              // if (this.$store.state.fileOption.currentPath === this.$store.state.fileOption.filePath) {
+              //   this.$store.commit('changeCurrentPath', item.path)
+              // }
+              this.$store.commit('changeDownFile', item.path)
             }
           })
           .catch(err => {
@@ -212,6 +275,39 @@ export default {
           .catch(err => {
             console.log(err)
           })
+      }
+    },
+    close () {
+      if (this.dataChg) {
+        this.$Modal.confirm({
+          title: '关闭确认',
+          content: '<p>有文件未保存，确认关闭窗口？</p>',
+          onOk: () => {
+            this.frameShow = false
+            this.dataChg = false
+            this.response = ''
+          }
+        })
+      } else {
+        this.frameShow = false
+      }
+    },
+    handkleMax () {
+      if (!this.max) {
+        this.$refs['popUp'].style.width = '100%'
+        this.$refs['popUp'].style.height = '100%'
+        this.$refs['popUp'].style.top = 0
+        this.$refs['popUp'].style.margin = 0
+        this.$refs['popUp'].style.left = 0
+        this.max = true
+      } else {
+        this.$refs['popUp'].style.width = '600px'
+        this.$refs['popUp'].style.height = '600px'
+        this.$refs['popUp'].style.top = '50%'
+        this.$refs['popUp'].style.marginLeft = '-300px'
+        this.$refs['popUp'].style.marginTop = '-300px'
+        this.$refs['popUp'].style.left = '50%'
+        this.max = false
       }
     },
     dataForeach (data, ind, bol) {
@@ -246,6 +342,7 @@ export default {
 </script>
 
 <style scoped>
+  @import url('../common/css/frame.css');
   .icon-arrang-container{width: 100%;height: 100%;padding: 10px 20px 0 10px;box-sizing: border-box;}
   .icon-arrang-container ul{display: flex;width: 100%;flex-wrap: wrap;flex-direction: row;}
   .icon-arrang-container ul li{position: relative;width: 78px;margin: 10px 10px 0 10px;max-height: 128px;padding: 5px;align-self: end;

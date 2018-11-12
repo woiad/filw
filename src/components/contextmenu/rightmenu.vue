@@ -36,6 +36,22 @@
             </dd>
           </dl>
         </li>
+        <li class="un-zip">
+          <a href="javascript:;"><menu-icon :pos-y="-32"></menu-icon>解压到...</a>
+          <i class="fa fa-angle-right"></i>
+          <dl :class="{right: compressRight}">
+            <dd @click.stop="unZip(true)">
+              <a href="javascript:;">
+                <i class="fa fa-external-link" aria-hidden="true"></i>解压到当前
+              </a>
+            </dd>
+            <dd @click.stop="unZip(false)">
+              <a href="javascript:;">
+                <i class="fa fa-external-link" aria-hiden="ture"></i>解压到...
+              </a>
+            </dd>
+          </dl>
+        </li>
         <li class="divider"></li>
         <li v-if="leftContextShow" @click="newFileClick">
           <a href="javascript:;"><menu-icon :pos-y="-16"></menu-icon>新建文件夹</a>
@@ -51,11 +67,12 @@
 <script>
 import menuIcon from '../baseVue/menuicon/menuIcon'
 import util from '../../util/index'
+import treeList from '../kTree/treeList'
 export default {
   name: 'rightmenu',
   data () {
     return {
-      compressType: ['TAR', 'TAR.GZ', 'TAR,BZ2', 'ZIP']
+      compressType: ['TAR', 'TAR.GZ', 'TAR.BZ2', 'ZIP']
     }
   },
   props: {
@@ -305,7 +322,7 @@ export default {
     },
     compressClick (index) { // 压缩
       let arr = []
-      let file = this.rightDataFea()[1]
+      let file = util.rightDataFea(this.$store.state.rightShowData)[1]
       arr[0] = this.$store.state.fileOption.currentPath
       arr[1] = file.path
       this.$store.commit('changeRightMenuShow', false)
@@ -321,10 +338,40 @@ export default {
         .catch(err => {
           console.log(err)
         })
+    },
+    unZip (currentPath) { // 解压
+      this.$store.commit('changeRightMenuShow', false)
+      let unzipItem = util.rightDataFea(this.$store.state.rightShowData)[1]
+      let nameSlice = unzipItem.name.split('.')
+      let filename = []
+      filename.push(unzipItem.path)
+      if (nameSlice[nameSlice.length - 1] === 'tar' || nameSlice[nameSlice.length - 1] === 'bz2' ||
+        nameSlice[nameSlice.length - 1] === 'zip' || nameSlice[nameSlice.length - 1] === 'gz') {
+        if (currentPath) {
+          this.$post('fileapi/operdir', {key: 'unzip', filename: JSON.stringify(filename), toname: this.$store.state.fileOption.currentPath})
+            .then(res => {
+              if (res[0] === 500) {
+                this.$Message.error('err' + res[2])
+              } else if (res[0] === 200) {
+                this.$Message.success(res[2])
+                setTimeout(this.getFile(this.$store.state.fileOption.currentPath + '/'), 3000)
+              }
+            })
+            .catch(err => {
+              this.$Message.error('err' + err)
+            })
+        } else {
+          this.$store.commit('changeUnzipItem', filename)
+          this.$store.commit('changeUnZipShow', true)
+        }
+      } else {
+        this.$Message.error('解压失败，该文件不是压缩文件')
+      }
     }
   },
   components: {
-    menuIcon
+    menuIcon,
+    treeList
   }
 }
 </script>
@@ -338,6 +385,7 @@ export default {
   .context-menu ul li.divider{height: 2px;margin: 2px 0 4px 0;border-bottom: 1px solid #eee;line-height: 0}
   .context-menu ul li:hover{background: #e1e1e1;color: #444}
   .context-menu ul li.creat-compress:hover dl{display: block;}
+  .context-menu ul li.un-zip:hover dl{display: block}
   .context-menu ul li.divider:hover{background: none;}
   .context-menu ul li a{display: inline-block;width: 100%;height: 25px;line-height: 25px;color: #222;font-size: 14px;}
   .context-menu ul li a i{display: inline-block;width: 16px;height: 16px;margin-right: 10px;background-image: url('../../assets/image/menu_icon.png');

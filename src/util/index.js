@@ -52,7 +52,7 @@ util.newFileNumber = function (type) { // 创建多个文件夹时，文件夹�
     if (arr.length === 0) {
       let fileQua = [0]
       localStorage.setItem('fileQua', JSON.stringify(fileQua))
-      if (type) {
+      if (type !== 'dir') {
         obj.name = '新建文件' + '.' + type
       } else {
         obj.name = '新建文件夹'
@@ -63,13 +63,13 @@ util.newFileNumber = function (type) { // 创建多个文件夹时，文件夹�
           arr.splice(i, 0, i)
           addItem = false
           if (i === 0) {
-            if (type) {
+            if (type !== 'dir') {
               obj.name = '新建文件' + '.' + type
             } else {
               obj.name = '新建文件夹'
             }
           } else {
-            if (type) {
+            if (type !== 'dir') {
               obj.name = '新建文件' + '(' + i + ')' + '.' + type
             } else {
               obj.name = '新建文件夹' + '(' + i + ')'
@@ -81,7 +81,7 @@ util.newFileNumber = function (type) { // 创建多个文件夹时，文件夹�
     }
     if (addItem) {
       arr.push(arr[arr.length - 1] + 1)
-      if (type) {
+      if (type !== 'dir') {
         obj.name = '新建文件' + '(' + arr[arr.length - 1] + ')' + '.' + type
       } else {
         obj.name = '新建文件夹' + '(' + arr[arr.length - 1] + ')'
@@ -91,8 +91,8 @@ util.newFileNumber = function (type) { // 创建多个文件夹时，文件夹�
   } else {
     let fileQua = [0]
     localStorage.setItem('fileQua', JSON.stringify(fileQua))
-    if (type) {
-      obj.name = 'c' + '.' + type
+    if (type !== 'dir') {
+      obj.name = '新建文件' + '.' + type
     } else {
       obj.name = '新建文件'
     }
@@ -136,10 +136,11 @@ util.delFile = function (list, path, type, item) { // 删除导航栏文件
       list.splice(i, 1)
       break
     } else if (list[i].path === path && type === 'addFile') { // 新建导航栏文件
-      let str = JSON.stringify(item)
+      let str = JSON.stringify(item) // 传过来的item不转为stringify,会导致原item发生改变
       let obj = JSON.parse(str)
-      if (obj.type === 'dir') { // 判断新增的文件是 dir 还是 type
+      if (obj.type === 'dir') { // 判断新增的文件是 dir 还是 file
         obj.level = list[i].level + 1
+        obj.path = list[i].path + '/' + item.name
       }
       if (!obj.childrens) {
         obj.childrens = []
@@ -172,5 +173,10 @@ util.rightDataFea = function (listData) {
       return arr
     }
   }
+}
+util.pathModifer = function (name, path) {
+  let pathArr = path.split('/')
+  pathArr[pathArr.length - 1] = name
+  return pathArr.join('/')
 }
 export default util

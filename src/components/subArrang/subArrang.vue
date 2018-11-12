@@ -1,12 +1,17 @@
 <template>
   <div class="sub-container">
-    <p>分栏模式</p>
+    <p>1223</p>
   </div>
 </template>
 
 <script>
 export default {
-  name: 'subArrang'
+  name: 'subArrang',
+  data () {
+    return {
+      content: 'function （） {alert（1）}'
+    }
+  }
 }
 </script>
 

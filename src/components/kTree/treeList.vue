@@ -11,7 +11,7 @@
           <i class="fa fa-folder"></i>
           <input :class="{'rename': activeName.indexOf(item.name) > -1 && renameFunc}" v-focus="focusStatus"
           @keyup.enter="$event.target.blur" @blur="inpComplete(item)" :placeholder="item.name"
-          v-model="inpCont"/>
+          v-model="inpCont">
           <span :class="{'rename': activeName.indexOf(item.name) > -1 && renameFunc}">{{item.name}}</span>
           <a class="btn" v-if="hoverName.indexOf(item.name) > -1 || (activeName.indexOf(item.name) > -1 && hierarch === item.level) "
              @click.stop="leftBtnClick($event, item)"><btn-right></btn-right></a>
@@ -86,10 +86,19 @@ export default {
     leftBtnClick (e, item) {
       this.addActiveName(item)
       let arr = []
+      let allHig = util.getId('splitLeft').clientHeight
+      console.log(allHig)
       arr[0] = e.clientY - 40
       arr[1] = e.clientX
-      this.$store.commit('changeLeftMenuY', arr)
       this.$store.commit('changeLeftMenuShow', true)
+      this.$nextTick(() => {
+        let allHig = util.getId('splitLeft').clientHeight
+        let contentMenuHeight = util.getId('contentMenu').clientHeight
+        if (e.clientY + contentMenuHeight > allHig) {
+          arr[0] = allHig - contentMenuHeight
+        }
+        this.$store.commit('changeLeftMenuY', arr)
+      })
     },
     leftItemClick (item) {
       this.userSelect = false
@@ -139,6 +148,11 @@ export default {
               this.$Message.success('重名成功')
               this.$emit('initPath')
               item.name = this.inpCont
+              item.path = util.pathModifer(item.name, item.path)
+              if (this.$store.state.fileOption.currentPath === this.$store.state.fileOption.filePath) {
+                this.$store.commit('changeCurrentPath', item.path)
+              }
+              this.$store.commit('changeDownFile', item.path)
             } else if (res[0] === 500) {
               this.$Message.error(res[2])
             }
@@ -156,6 +170,7 @@ export default {
       this.$store.commit('changeDownFile', item.path)
     },
     getFile (path) {
+      this.$store.commit('changeMoreListShow', false)
       this.$post('/fileapi/operdir', {key: 'show_dir', dir: path})
         .then(res => {
           let arr = []

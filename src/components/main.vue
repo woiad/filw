@@ -1,17 +1,17 @@
 <template>
   <div class="container" @click.stop="changeInp">
-    <div class="header">
+    <div class="header" id="header">
       <Header></Header>
     </div>
     <div class="content">
-      <Split v-model="split" @on-moving="panelMove">
-        <div slot="left" class="split-left">
+      <Split v-model="split">
+        <div slot="left" class="split-left" ref="splitLeft" id="splitLeft">
           <k-tree :list="treeData" @initPath="init" ref="tree"></k-tree>
           <context-menu v-if="leftMenu" :left-context-show="true"
-          :page-x="leftMenuPageX" :page-y="leftMenuPageY"></context-menu>
+          :page-x="leftMenuPageX" :page-y="leftMenuPageY" id="contentMenu"></context-menu>
         </div>
         <div slot="right" class="split-right">
-          <div class="split-right-top">
+          <div class="split-right-top" id="rightTop">
             <div class="top-content">
               <div class="history">
                 <button :disabled="Filepath.length > 2 ? false : 'disabled'" class="btn-default"
@@ -25,17 +25,17 @@
               </div>
               <div class="top-middle" :style="{'width': split > 0.4 ? '80%' : '50%'}">
                 <button class="btn-default home-btn"><i class="fa fa-home" style="color: #999;"></i></button>
-                <div class="path" title="点击进入编辑" @click.stop="inpStatus = true">
-                  <ul v-show="!inpStatus">
+                <div class="path" ref="pathWrap">
+                  <ul ref="path">
                     <li v-for="(item, index) in Filepath" :key="index">
                       <a href="javascript:;" style="z-index: 3">
                         <span class="path-name">{{item}}</span>
                       </a>
                     </li>
                   </ul>
-                  <div class="path-input" v-show="inpStatus">
-                    <input type="text" id="path_inp" autofocus="autofocus" />
-                  </div>
+                  <!--<div class="path-input" v-show="inpStatus">-->
+                    <!--<input type="text" id="path_inp" autofocus="autofocus" />-->
+                  <!--</div>-->
                 </div>
                 <button class="btn-default back-btn" v-if="split > 0.6 ? false : true" @click.stop="backPath">
                   <i></i>
@@ -43,7 +43,7 @@
               </div>
               <transition name="split-right">
                 <div class="top-right" v-if="split > 0.38 ? false : true">
-                  <input type="text" />
+                  <input type="text" @input="searchHandle" v-model.trim="searchText" />
                   <button class="btn-default search-btn">
                     <i class="fa fa-search" aria-hidden="true"></i>
                   </button>
@@ -51,10 +51,10 @@
               </transition>
             </div>
           </div>
-          <div class="split-right-nav" :style="{width: split > 0.66 ? '428px' : '100%'}">
+          <div class="split-right-nav" :style="{width: split > 0.66 ? '428px' : '100%'}" id="rightNav">
             <div class="nav-left">
               <div class="btn-wrap">
-                <button class="btn-default new-btn" @click.stop="newDir">
+                <button class="btn-default new-btn" @click.stop="newDir('dir')">
                   <i class="fa fa-folder" aria-hidden="true" style="color: #ffe385;"></i>
                   新建文件夹
                 </button>
@@ -85,27 +85,27 @@
                 </transition>
               </div>
               <div class="btn-wrap" style="margin-left: 10px;">
-                <button class="btn-default up-btn" style="width: 60px;">
+                <button class="btn-default up-btn" style="width: 60px;" @click="upShow = true">
                   <i class="fa fa-upload" aria-hidden="true" style="font-size: 16px;color: #3291e5;"></i>
                   上传
                 </button>
-                <button class="btn-default drap-btn" @click="fildUpShow = !fildUpShow">
-                  <i class="fa fa-angle-down"></i>
-                </button>
-                <transition name="slide">
-                  <div class="dropMenu" style="left: 57px;" v-if="fildUpShow">
-                    <ul>
-                      <li>
-                        <i class="fa fa-upload" style="color: rgb(50, 145, 229);margin-right: 5px;"></i>
-                        <a>文件</a>
-                      </li>
-                      <li>
-                        <i class="fa fa-upload" style="color: rgb(50, 145, 229);margin-right: 5px;"></i>
-                        <a>文件夹</a>
-                      </li>
-                    </ul>
-                  </div>
-                </transition>
+                <!--<button class="btn-default drap-btn" @click="fildUpShow = !fildUpShow">-->
+                  <!--<i class="fa fa-angle-down"></i>-->
+                <!--</button>-->
+                <!--<transition name="slide">-->
+                  <!--<div class="dropMenu" style="left: 57px;" v-if="fildUpShow">-->
+                    <!--<ul>-->
+                      <!--<li>-->
+                        <!--<i class="fa fa-upload" style="color: rgb(50, 145, 229);margin-right: 5px;"></i>-->
+                        <!--<a>文件</a>-->
+                      <!--</li>-->
+                      <!--<li>-->
+                        <!--<i class="fa fa-upload" style="color: rgb(50, 145, 229);margin-right: 5px;"></i>-->
+                        <!--<a>文件夹</a>-->
+                      <!--</li>-->
+                    <!--</ul>-->
+                  <!--</div>-->
+                <!--</transition>-->
               </div>
             </div>
             <div class="nav-content">
@@ -120,7 +120,7 @@
                     <menu-icon  :pos-y="-80" :mg="4"></menu-icon>删除
                   </button>
                 </li>
-                <li v-if="renameShow">
+                <li v-if="renameShow" @click.stop="renameHandle">
                   <button class="btn-default">
                     <menu-icon  :pos-y="-64" :mg="4"></menu-icon>重命名
                   </button>
@@ -135,12 +135,25 @@
                     <menu-icon  :pos-x="-16" :pos-y="-80" :mg="4"></menu-icon>剪切
                   </button>
                 </li>
+                <li>
+                  <button class="btn-default" style="width: 100px;">
+                    <menu-icon  :pos-x="-16" :pos-y="-32" :mg="4"></menu-icon>创建压缩包
+                  </button>
+                  <dl>
+                    <dd v-for="(item, index) in compressType" :key="index" @click.stop="compressClick(index)">
+                      <a href="javascript:;">
+                        <menu-icon :pos-x="-16" :pos-y="-32"></menu-icon>
+                        {{item}}文件夹
+                      </a>
+                    </dd>
+                  </dl>
+                </li>
               </ul>
             </div>
             <div class="nav-right">
-              <div class="amp">
-                <i class="fa fa-search-plus" aria-hidden="true"></i>
-              </div>
+              <!--<div class="amp">-->
+                <!--<i class="fa fa-search-plus" aria-hidden="true"></i>-->
+              <!--</div>-->
               <ul>
                 <li>
                   <button title="图标排列" class="icon-sort" :class="{'active': iconArrangShow}"
@@ -165,11 +178,22 @@
           </div>
           <div class="split-right-content">
             <icon-arrang v-if="iconArrangShow" @open="dbopenfile" ref="iconArrang"></icon-arrang>
-            <list-arrang v-if="listArrangShow"></list-arrang>
+            <list-arrang v-if="listArrangShow" @open="dbopenfile"></list-arrang>
             <sub-arrang v-if="subArrangShow"></sub-arrang>
           </div>
         </div>
       </Split>
+    </div>
+    <transition name="slideUp">
+      <div class="footer" v-if="unzipPathShow">
+        <p style="font-size: 14px;">请选择解压路径：</p>
+        <p class="unzpi-path">{{this.$store.state.fileOption.currentPath}}</p>
+        <button class="comfirm" @click.stop="comfirmPath">确定</button>
+        <button class="cancel" @click.stop="cancelPath">取消</button>
+      </div>
+    </transition>
+    <div v-if="upShow">
+      <upload @close-up="upShow = false"></upload>
     </div>
   </div>
 </template>
@@ -183,6 +207,7 @@ import subArrang from './subArrang/subArrang'
 import menuIcon from './baseVue/menuicon/menuIcon'
 import contextMenu from './contextmenu/rightmenu'
 import util from '../util/index'
+import upload from './upload/upload'
 
 export default {
   name: 'index',
@@ -191,17 +216,70 @@ export default {
   },
   data () {
     return {
+      compressType: ['TAR', 'TAR.GZ', 'TAR.BZ2', 'ZIP'],
       treeData: [],
+      searchText: '',
       inpStatus: false,
       buildFildShow: false,
       fildUpShow: false,
       iconArrangShow: true,
       listArrangShow: false,
       subArrangShow: false,
-      split: 0.15
+      split: 0.15,
+      upShow: false,
+      searchData: [],
+      timeId: ''
     }
   },
   methods: {
+    queryData () {
+      let path = ''
+      if (this.$store.state.fileOption.currentPath === '/') {
+        path = '/'
+      } else {
+        path = this.$store.state.fileOption.currentPath + '/'
+      }
+      this.$post('/fileapi/operdir', {key: 'show_dir', dir: path})
+        .then(res => {
+          this.searchData = []
+          for (let i in res.file) {
+            let obj = {}
+            obj.name = i
+            obj.check = false
+            obj.path = res.file[i][0]
+            if (res.file[i][1] === 'dir') {
+              obj.extand = res.file[i][1]
+            } else {
+              let arr = obj.name.split('.')
+              obj.extand = arr[arr.length - 1]
+            }
+            obj.type = res.file[i][1]
+            obj.access = res.file[i][2]
+            this.searchData.push(obj)
+          }
+        })
+        .catch(err => {
+          this.$Message.error('err' + err)
+        })
+    },
+    searchHandle () {
+      clearTimeout(this.timeId)
+      let reg = RegExp(this.searchText + '.*', 'i')
+      let arr = []
+      this.timeId = setTimeout(this.queryData(), 300)
+      if (this.searchData.length > 0) {
+        if (this.searchText !== '') {
+          this.searchData.map(item => {
+            if (reg.test(item.name)) {
+              arr.push(item)
+            }
+          })
+          this.$store.commit('changeRightShowData', arr)
+        } else {
+          this.$store.commit('changeRightShowData', this.searchData)
+        }
+      }
+    },
     changeInp () {
       if (this.inpStatus) {
         this.inpStatus = !this.inpStatus
@@ -252,7 +330,15 @@ export default {
         }
       })
     },
-    optionHandler (option) {
+    renameHandle () {
+      this.$store.state.rightShowData.forEach((item, index) => {
+        if (item.check) {
+          this.$store.commit('changeRenameShow', true)
+          this.$store.commit('changeCurrentName', index)
+        }
+      })
+    },
+    optionHandler (option) { // 删除,复制，剪切
       let optionArr = this.dataForEach()
       let pathArr = []
       let typeArr = []
@@ -341,8 +427,44 @@ export default {
         this.$store.commit('changeAdvanArr', arr)
       }
     },
-    panelMove (e) {
-      console.log(e)
+    comfirmPath () {
+      let filename = this.$store.state.unzipItem
+      this.$post('fileapi/operdir', {key: 'unzip', filename: JSON.stringify(filename), toname: this.$store.state.fileOption.currentPath})
+        .then(res => {
+          if (res[0] === 500) {
+            this.$Message.error('err' + res[2])
+          } else if (res[0] === 200) {
+            this.$Message.success(res[2])
+          }
+        })
+        .catch(err => {
+          this.$Message.error('err' + err)
+          console.log(err)
+        })
+      this.$store.commit('changeUnzipItem', [])
+      this.$store.commit('changeUnZipShow', false)
+    },
+    cancelPath () {
+      this.$store.commit('changeUnzipItem', [])
+      this.$store.commit('changeUnZipShow', false)
+    },
+    compressClick (index) {
+      let compressItem = this.dataForEach()
+      let filename = []
+      for (let i = 0; i < compressItem.length; i++) {
+        filename.push(compressItem[i].path)
+      }
+      this.$post('/fileapi/operdir', {key: 'zip', type: index + 1, filename: JSON.stringify(filename), zipname: compressItem[0].name})
+        .then(res => {
+          if (res[0] === 500) {
+            this.$Message.error('err' + res[2])
+          } else if (res[0] === 200) {
+            this.$Message.success(res[2])
+          }
+        })
+        .catch(err => {
+          this.$Message.error(err)
+        })
     },
     init () { // 初始化获取左边目录数据
       this.$post('/fileapi/operdir', {key: 'list_dir', dir: '/'})
@@ -368,6 +490,17 @@ export default {
         }
       })
       return arr
+    },
+    changeLeft () {
+      let allWidth = 0
+      for (let i = 0; i < this.$refs['path'].childNodes.length; i++) {
+        allWidth += parseInt(this.$refs['path'].childNodes[i].clientWidth)
+      }
+      if (allWidth > this.$refs['pathWrap'].clientWidth) {
+        this.$refs['path'].style.marginLeft = this.$refs['pathWrap'].clientWidth - allWidth - 20 + 'px'
+      } else {
+        this.$refs['path'].style.marginLeft = '0px'
+      }
     }
   },
   computed: {
@@ -388,16 +521,22 @@ export default {
     },
     Filepath () { // 获取当前文件路径
       let arr = []
-      if (this.$store.state.fileOption.currentPath.length > 0) {
+      if (this.$store.state.fileOption.currentPath !== '/') {
         arr = this.$store.state.fileOption.currentPath.split('/')
         arr.splice(1, 0, '/')
       } else {
         arr = ['', '/']
       }
+      this.$nextTick(() => {
+        this.changeLeft()
+      })
       return arr
     },
     advanPath () {
       return this.$store.state.advanArr
+    },
+    unzipPathShow () {
+      return this.$store.state.unzipShow
     }
   },
   components: {
@@ -407,7 +546,8 @@ export default {
     listArrang,
     subArrang,
     menuIcon,
-    contextMenu
+    contextMenu,
+    upload
   }
 }
 </script>
@@ -415,10 +555,10 @@ export default {
 <style>
   @import '../assets/css/basic.css';
   @import '../assets/font-awesome-4.7.0/css/font-awesome.css';
-  .container{width: 100%;height: 100%;overflow-x: hidden;}
+  .container{width: 100%;height: 100%;overflow: hidden;}
   .container .content{width: 100%;height: calc(100% - 40px);}
   .split-left{width: 100%;height: 100%;}
-  .split-right{width: 100%;height: 100%;box-sizing: border-box;}
+  .split-right{width: 100%;height: 100%;box-sizing: border-box;overflow: hidden}
   .split-right .split-right-top{width: 100%;height: 49px;background: #f8f8f8 url('../assets/image/bg.gif') 0px -2px repeat-x;border-bottom: 1px solid #ddd;}
   .split-right .split-right-top .top-content{width: 100%;height: 49px;padding-top: 12px;box-sizing: border-box;padding-left: 10px;white-space: nowrap;}
   .split-right .split-right-top .top-content  button.btn-default{background: url("../assets/image/button_bg.png") 0 0px repeat-x;outline: none;
@@ -434,6 +574,7 @@ export default {
   .split-right .split-right-top .top-content .top-middle .home-btn{width: 38px;height: 28px;border-color: #ddd;cursor: pointer;font-size: 16px;}
   .split-right .split-right-top .top-content .top-middle .path{display: inline-block;width: 80%;height: 28px;overflow: hidden;cursor: text;
   border: 1px solid #ddd;box-shadow: #e6e6e6 0px 0px 20px inset;background: #f8f8f8 url("../assets/image/bg.gif") 0px -2px repeat-x;}
+  .split-right .split-right-top .top-content .top-middle .path ul{position: relative;}
   .split-right .split-right-top .top-content .top-middle .path ul li{display: inline-block;height: 28px;vertical-align: top;}
   .split-right .split-right-top .top-content .top-middle .path ul li a{position: relative;display: inline-block;padding: 0 15px 0 15px;height: 28px;
     background: url('../assets/image/path.bg.png') no-repeat;background-position: 100% -1px;cursor: pointer;font-size: 12px;color: #666;line-height: 28px;}
@@ -476,9 +617,15 @@ export default {
   .slide-enter-active, .slide-leave-active{transform: translateY(0);transition: all .3s linear;opacity: 1}
   .slide-enter, .slide-leave-to{transform: translateY(-20px);opacity: 0;}
   .split-right .split-right-nav .nav-content{float: left;margin-left: 20px;}
-  .split-right .split-right-nav .nav-content ul li{float: left;}
+  .split-right .split-right-nav .nav-content ul li{float: left;position: relative;}
   .split-right .split-right-nav .nav-content ul li button{width: 60px;cursor: pointer;border-right: none;}
   .split-right .split-right-nav .nav-content ul li:last-child button{border-right: 1px solid #ddd;}
+  .split-right .split-right-nav .nav-content ul li:last-child:hover dl{display: block;}
+  .split-right .split-right-nav .nav-content ul li dl{display: none;position: absolute;width: 120px;top: 27px;background: #ffffff;border: 1px solid rgba(0, 0, 0, 0.1);z-index: 20;
+    box-shadow: 4px 5px 10px rgba(0, 0, 0, 0.2);}
+  .split-right .split-right-nav .nav-content ul li dl dd{height: 25px;line-height: 25px;}
+  .split-right .split-right-nav .nav-content ul li dl dd a{color: #222; padding: 5px;}
+  .split-right .split-right-nav .nav-content ul li dl dd:hover{background: #e1e1e1;}
   .split-right .split-right-nav .nav-right{float: right;width: 150px;margin-right: 20px;}
   .split-right .split-right-nav .nav-right .amp{float: left;width: 25px;height: 25px;margin: 5px 5px 5px 0;font-size: 14px;text-align: center;line-height: 25px;color: #888;
   cursor: pointer;}
@@ -493,7 +640,15 @@ export default {
   .split-right .split-right-nav .nav-right li button.list-sort i{background-position: 16px -625px}
   .split-right .split-right-nav .nav-right li button.subfiled-sort i{background-position: 16px -562px}
   .split-right .split-right-nav .nav-right li:hover button{background: #e4f8ff;border-color: #93cfff;}
-  .split-right .split-right-content{width: 100%;overflow: hidden;height: calc(100% - 84px);}
+  .split-right .split-right-content{width: 100%;height: calc(100% - 84px);}
   .slplit-right-enter-active, .split-right-leave-active{transition: all .2s linear;transform: translate(0);opacity: 1;}
   .split-right-enter, .split-right-leave-to{transform: translateX(20px);opacity: 0;}
+  .footer{width: 100%;position: fixed;bottom: 0;padding: 15px;background: #F8F8F8;border-top: 1px solid #eee; text-align: center;z-index: 100}
+  .footer p.unzpi-path{display: inline-block;width: 555px;padding: 0px 10px;height: 27px;border: 1px solid rgba(100,100,100,0.3);
+  background: rgba(255, 255, 255, 0.3);vertical-align: top;text-align: left;line-height: 27px;}
+  .footer button{display: inline-block;padding: 0 18px;height: 25px;margin-left: 15px;line-height: 25px;border: 1px solid #ccc;background: #eee;color: #222; cursor: pointer;}
+  .footer .comfirm{border-color: #96c7ff; box-shadow: 0 0 2px #96c7ff;}
+  .footer button:hover{background: #fbfbfb;}
+  .slideUp-enter-active, .slideUP-leave-active{transition: all .2s linear; transform: translate(0px); opacity: 1;}
+  .slideUp-enter, .slideUp-leave-to{transform: translateY(45px);opacity: 0;}
 </style>
